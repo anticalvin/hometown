@@ -143,6 +143,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { BitmapPass, installBitmapHotkeys } from './bitmap.js';
 
 // ---------- renderer / scene ----------
 
@@ -174,6 +175,10 @@ const bloom = new UnrealBloomPass(
 );
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+// bitmap / ordered-dither look: last pass so quantizing happens in display space (F8 toggle, F9 cycle)
+const bitmapPass = new BitmapPass({ pixelRatio: renderer.getPixelRatio() });
+composer.addPass(bitmapPass);
+installBitmapHotkeys(bitmapPass);
 
 const hemi = new THREE.HemisphereLight(0xd5e4f2, 0x4a463c, 0.9);
 scene.add(hemi);
@@ -193,6 +198,7 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  bitmapPass.setPixelRatio(renderer.getPixelRatio());
 });
 
 // ---------- world ----------
@@ -286,7 +292,7 @@ const world = {
   ach: { ...(save.ach || {}) },
   suitSaved: save.suit || 'street',
   suitsOwnedSaved: save.suits || {},
-  settings: { volume: 1, sens: 1, invertY: false, lowGfx: false, ...(save.settings || {}) },
+  settings: { volume: 1, sens: 1, invertY: false, lowGfx: false, bitmap: 'tiny', ...(save.settings || {}) },
   perks: { style: 1, melee: 1, webDur: 6, decay: 24, busted: 1.6 },
   waypoint: null,
   barks: [],
@@ -505,6 +511,9 @@ function applySettings() {
   setMasterVolume(st.volume);
   sun.castShadow = !st.lowGfx;
   renderer.setPixelRatio(st.lowGfx ? 1 : (isTouch ? 1 : Math.min(window.devicePixelRatio, 2)));
+  bitmapPass.setPixelRatio(renderer.getPixelRatio());
+  bitmapPass.setPreset(st.lowGfx ? 'tiny' : st.bitmap);
+  bitmapPass.speedReactive = !st.lowGfx;
   saveGame();
 }
 
@@ -891,6 +900,7 @@ function updateCamera(dt) {
   }
 
   // sense of speed: widen FOV as you go faster — unless scoping the sniper
+  world._focusSpeed = focusSpeed;
   let targetFov = Math.min(84, 70 + focusSpeed * 0.32);
   if (!player.inCar && !player.inHeli && !player.inBoat && !web.attached &&
       WEAPONS[weaponIdx].zoom && gameState === 'play') {
@@ -2740,6 +2750,7 @@ function update(dt) {
 
   // bloom breathes with the night: stronger glow when the city lights are on
   bloom.strength = world.settings.lowGfx ? 0 : 0.22 + dn.glow * 0.33;
+  world._night = Math.min(1, dn.glow);
 
   // headlights when driving after dark
   const pcar = player.inCar;
@@ -3093,6 +3104,7 @@ function animate() {
     camera.rotation.z += Math.sin(t * 0.0021) * 0.09;
     camera.rotation.x += Math.sin(t * 0.0013) * 0.04;
   }
+  bitmapPass.update(dt, { speed: world._focusSpeed || 0, heat: world.wanted / 5, night: world._night || 0 });
   composer.render();
   if (world.captureNext) {
     world.captureNext = false;
@@ -3107,6 +3119,7 @@ animate();
 
 // debug handle for automated testing
 window.__debug = {
+  bitmapPass,
   world,
   player,
   mission,

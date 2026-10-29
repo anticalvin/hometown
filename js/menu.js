@@ -78,6 +78,11 @@ export function initMenu(h) {
   qual.type = 'checkbox'; qual.checked = !!s.lowGfx;
   qual.onchange = () => { s.lowGfx = qual.checked; hooks.onSettings(); };
 
+  const bmp = document.createElement('select');
+  for (const n of ['tiny', 'fine', 'chunky', 'raw']) bmp.add(new Option(n.toUpperCase(), n));
+  bmp.value = s.bitmap || 'tiny';
+  bmp.onchange = () => { s.bitmap = bmp.value; hooks.onSettings(); };
+
   const box = document.createElement('div');
   box.style.cssText = 'margin-top:16px;padding:12px 20px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);border-radius:10px;';
   box.append(
@@ -85,6 +90,7 @@ export function initMenu(h) {
     row('SENSITIVITY', sens),
     row('INVERT Y', inv),
     row('LOW GRAPHICS', qual),
+    row('BITMAP LOOK', bmp),
   );
   menuEl.appendChild(box);
 
